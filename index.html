@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Asset Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:     #0f1117;
+    --card:   #1a1d27;
+    --border: #2a2d3a;
+    --accent: #3b82f6;
+    --green:  #22c55e;
+    --red:    #ef4444;
+    --amber:  #f59e0b;
+    --text:   #e2e8f0;
+    --muted:  #64748b;
+    --radius: 12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    padding-bottom: 32px;
+  }
+
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header .logo { font-size: 22px; }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+  header p  { font-size: 12px; color: var(--muted); }
+
+  .container { max-width: 480px; margin: 0 auto; padding: 20px 16px; }
+
+  /* ── Scan area ── */
+  .scan-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .scan-title {
+    padding: 14px 16px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  #reader {
+    width: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+  #reader video { width: 100% !important; }
+
+  /* ── Manual entry ── */
+  .manual-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .manual-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .manual-row input:focus { border-color: var(--accent); }
+  .manual-row input::placeholder { color: var(--muted); }
+  .btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 16px;
+    transition: opacity .15s;
+    white-space: nowrap;
+  }
+  .btn:active { opacity: .75; }
+  .btn.green  { background: var(--green); }
+  .btn.ghost  { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+
+  /* ── Status banner ── */
+  .banner {
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    font-weight: 500;
+    display: none;
+  }
+  .banner.info  { background: #1e3a5f; color: #93c5fd; display: block; }
+  .banner.error { background: #3b1515; color: #fca5a5; display: block; }
+  .banner.ok    { background: #14311d; color: #86efac; display: block; }
+
+  /* ── Asset card ── */
+  #assetCard { display: none; }
+  .asset-header {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .asset-tag {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .asset-name {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 4px;
+  }
+  .asset-sub {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .info-cell {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .info-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 3px; }
+  .info-val   { font-size: 14px; font-weight: 600; }
+
+  /* ── Edit form ── */
+  .edit-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .edit-card h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 14px;
+  }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  .field select, .field textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .2s;
+    -webkit-appearance: none;
+  }
+  .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 72px; font-family: inherit; }
+
+  .action-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .action-row .btn { flex: 1; padding: 13px; font-size: 15px; text-align: center; }
+
+  /* ── Spinner ── */
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .last-scan-note {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">📋</span>
+  <div>
+    <h1>Asset Scanner</h1>
+    <p>Fixed Asset Inventory System</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Scanner -->
+  <div class="scan-card">
+    <div class="scan-title">Scan QR Code</div>
+    <div id="reader"></div>
+    <div class="manual-row">
+      <input type="text" id="manualTag" placeholder="Or type Asset Tag (e.g. RT-001-0009)" autocomplete="off" autocapitalize="characters">
+      <button class="btn" onclick="lookupTag()">Search</button>
+    </div>
+  </div>
+
+  <!-- Status banner -->
+  <div class="banner" id="banner"></div>
+
+  <!-- Asset display + edit -->
+  <div id="assetCard">
+
+    <div class="asset-header">
+      <div class="asset-tag" id="aTag"></div>
+      <div class="asset-name" id="aName"></div>
+      <div class="asset-sub" id="aSub"></div>
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="info-label">Category</div>
+          <div class="info-val" id="aCat"></div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">Restaurant</div>
+          <div class="info-val" id="aRest"></div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">Current Location</div>
+          <div class="info-val" id="aLoc"></div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">Condition / Status</div>
+          <div class="info-val" id="aStatus"></div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">Serial #</div>
+          <div class="info-val" id="aSerial"></div>
+        </div>
+        <div class="info-cell">
+          <div class="info-label">Last Inventoried</div>
+          <div class="info-val" id="aLastInv"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="edit-card">
+      <h3>Update This Asset</h3>
+
+      <div class="field">
+        <label>New Location</label>
+        <select id="editLocation"></select>
+      </div>
+
+      <div class="field">
+        <label>Condition / Status</label>
+        <select id="editStatus"></select>
+      </div>
+
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="editNotes" placeholder="Add any notes here…"></textarea>
+      </div>
+
+      <div class="action-row">
+        <button class="btn ghost" onclick="resetScanner()">↩ Scan Again</button>
+        <button class="btn green" id="saveBtn" onclick="saveChanges()">✓ Save &amp; Log Scan</button>
+      </div>
+    </div>
+
+    <p class="last-scan-note">Saving will update Location, Condition, and today's date as Last Inventory Date.</p>
+  </div>
+
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────
+let currentAsset = null;
+let scanner      = null;
+const SCRIPT_URL = ""; // ← Filled at runtime via google.script.run (same origin)
+
+// ── Scanner init ─────────────────────────────────────────────
+function initScanner() {
+  scanner = new Html5Qrcode("reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 240, height: 240 } },
+    (decodedText) => {
+      scanner.stop().catch(() => {});
+      handleScan(decodedText);
+    },
+    () => {} // suppress per-frame errors
+  ).catch(() => {
+    // Camera permission denied — manual entry still works
+    document.querySelector(".scan-title").textContent = "Camera unavailable — use manual entry below";
+  });
+}
+
+// ── Lookup ───────────────────────────────────────────────────
+function handleScan(tag) {
+  setBanner("info", "Looking up " + tag + "…");
+  fetchAsset(tag.trim());
+}
+
+function lookupTag() {
+  const tag = document.getElementById("manualTag").value.trim().toUpperCase();
+  if (!tag) return;
+  setBanner("info", "Looking up " + tag + "…");
+  if (scanner) scanner.stop().catch(() => {});
+  fetchAsset(tag);
+}
+
+function fetchAsset(tag) {
+  google.script.run
+    .withSuccessHandler(onAssetLoaded)
+    .withFailureHandler(err => setBanner("error", "Error: " + err.message))
+    .lookupAsset(tag);
+}
+
+function onAssetLoaded(data) {
+  if (!data.ok) {
+    setBanner("error", "❌ " + data.message);
+    initScanner();
+    return;
+  }
+  currentAsset = data;
+  renderAsset(data);
+  setBanner("ok", "✓ Asset found — review and save below.");
+}
+
+// ── Render ───────────────────────────────────────────────────
+function renderAsset(d) {
+  document.getElementById("aTag").textContent    = d.tag;
+  document.getElementById("aName").textContent   = d.name;
+  document.getElementById("aSub").textContent    = d.desc;
+  document.getElementById("aCat").textContent    = d.category    || "—";
+  document.getElementById("aRest").textContent   = d.restaurant  || "—";
+  document.getElementById("aLoc").textContent    = d.location    || "—";
+  document.getElementById("aStatus").textContent = d.status      || "—";
+  document.getElementById("aSerial").textContent = d.serial      || "—";
+  document.getElementById("aLastInv").textContent = formatDate(d.lastInv);
+
+  // Populate dropdowns
+  const locSel = document.getElementById("editLocation");
+  const staSel = document.getElementById("editStatus");
+  locSel.innerHTML = "";
+  staSel.innerHTML = "";
+
+  d.locations.forEach(l => {
+    const o = document.createElement("option");
+    o.value = o.textContent = l;
+    if (l === d.location) o.selected = true;
+    locSel.appendChild(o);
+  });
+  d.conditions.forEach(c => {
+    const o = document.createElement("option");
+    o.value = o.textContent = c;
+    if (c === d.status) o.selected = true;
+    staSel.appendChild(o);
+  });
+
+  document.getElementById("editNotes").value = d.notes || "";
+  document.getElementById("assetCard").style.display = "block";
+}
+
+// ── Save ─────────────────────────────────────────────────────
+function saveChanges() {
+  if (!currentAsset) return;
+  const btn = document.getElementById("saveBtn");
+  btn.innerHTML = '<span class="spinner"></span>Saving…';
+  btn.disabled  = true;
+
+  const payload = {
+    row:      currentAsset.row,
+    location: document.getElementById("editLocation").value,
+    status:   document.getElementById("editStatus").value,
+    notes:    document.getElementById("editNotes").value,
+  };
+
+  google.script.run
+    .withSuccessHandler(res => {
+      btn.innerHTML = "✓ Save & Log Scan";
+      btn.disabled  = false;
+      if (res.ok) {
+        setBanner("ok", "✅ Saved! Last Inventory Date set to " + res.date);
+        // Update the displayed card values
+        document.getElementById("aLoc").textContent    = payload.location;
+        document.getElementById("aStatus").textContent = payload.status;
+        document.getElementById("aLastInv").textContent = res.date;
+      } else {
+        setBanner("error", "Save failed: " + res.message);
+      }
+    })
+    .withFailureHandler(err => {
+      btn.innerHTML = "✓ Save & Log Scan";
+      btn.disabled  = false;
+      setBanner("error", "Error: " + err.message);
+    })
+    .updateAsset(payload);
+}
+
+// ── Reset ─────────────────────────────────────────────────────
+function resetScanner() {
+  currentAsset = null;
+  document.getElementById("assetCard").style.display = "none";
+  document.getElementById("manualTag").value = "";
+  setBanner("", "");
+  initScanner();
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function setBanner(type, msg) {
+  const el = document.getElementById("banner");
+  el.className = "banner" + (type ? " " + type : "");
+  el.textContent = msg;
+}
+
+function formatDate(val) {
+  if (!val) return "—";
+  if (val instanceof Date) return val.toISOString().split("T")[0];
+  return String(val).split("T")[0];
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+window.addEventListener("load", initScanner);
+document.getElementById("manualTag").addEventListener("keydown", e => {
+  if (e.key === "Enter") lookupTag();
+});
+</script>
+</body>
+</html>
