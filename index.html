@@ -312,7 +312,7 @@
 // ── State ────────────────────────────────────────────────────
 let currentAsset = null;
 let scanner      = null;
-const SCRIPT_URL = ""; // ← Filled at runtime via google.script.run (same origin)
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzMLz466p7PuQhuz8RoDR-_TYcbAoYzmuH0QepcI6mJX9F6rJd7q_Cotw7qVCyvsp6X/exec";
 
 // ── Scanner init ─────────────────────────────────────────────
 function initScanner() {
@@ -326,7 +326,6 @@ function initScanner() {
     },
     () => {} // suppress per-frame errors
   ).catch(() => {
-    // Camera permission denied — manual entry still works
     document.querySelector(".scan-title").textContent = "Camera unavailable — use manual entry below";
   });
 }
@@ -345,32 +344,13 @@ function lookupTag() {
   fetchAsset(tag);
 }
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_ID/exec";
-
 function fetchAsset(tag) {
   fetch(APPS_SCRIPT_URL + "?tag=" + encodeURIComponent(tag))
     .then(r => r.json())
     .then(onAssetLoaded)
-    .catch(err => setBanner("error", "Error: " + err.message));
+    .catch(err => setBanner("error", "Network error: " + err.message));
 }
 
-function saveChanges() {
-  const payload = {
-    row:      currentAsset.row,
-    location: document.getElementById("editLocation").value,
-    status:   document.getElementById("editStatus").value,
-    notes:    document.getElementById("editNotes").value,
-  };
-  fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    body: JSON.stringify(payload)
-  })
-    .then(r => r.json())
-    .then(res => {
-      if (res.ok) setBanner("ok", "✅ Saved! Last Inventory Date set to " + res.date);
-      else setBanner("error", "Save failed: " + res.message);
-    });
-}
 function onAssetLoaded(data) {
   if (!data.ok) {
     setBanner("error", "❌ " + data.message);
@@ -384,17 +364,16 @@ function onAssetLoaded(data) {
 
 // ── Render ───────────────────────────────────────────────────
 function renderAsset(d) {
-  document.getElementById("aTag").textContent    = d.tag;
-  document.getElementById("aName").textContent   = d.name;
-  document.getElementById("aSub").textContent    = d.desc;
-  document.getElementById("aCat").textContent    = d.category    || "—";
-  document.getElementById("aRest").textContent   = d.restaurant  || "—";
-  document.getElementById("aLoc").textContent    = d.location    || "—";
-  document.getElementById("aStatus").textContent = d.status      || "—";
-  document.getElementById("aSerial").textContent = d.serial      || "—";
+  document.getElementById("aTag").textContent     = d.tag;
+  document.getElementById("aName").textContent    = d.name;
+  document.getElementById("aSub").textContent     = d.desc;
+  document.getElementById("aCat").textContent     = d.category   || "—";
+  document.getElementById("aRest").textContent    = d.restaurant || "—";
+  document.getElementById("aLoc").textContent     = d.location   || "—";
+  document.getElementById("aStatus").textContent  = d.status     || "—";
+  document.getElementById("aSerial").textContent  = d.serial     || "—";
   document.getElementById("aLastInv").textContent = formatDate(d.lastInv);
 
-  // Populate dropdowns
   const locSel = document.getElementById("editLocation");
   const staSel = document.getElementById("editStatus");
   locSel.innerHTML = "";
@@ -431,13 +410,16 @@ function saveChanges() {
     notes:    document.getElementById("editNotes").value,
   };
 
-  google.script.run
-    .withSuccessHandler(res => {
+  fetch(APPS_SCRIPT_URL, {
+    method:  "POST",
+    body:    JSON.stringify(payload)
+  })
+    .then(r => r.json())
+    .then(res => {
       btn.innerHTML = "✓ Save & Log Scan";
       btn.disabled  = false;
       if (res.ok) {
         setBanner("ok", "✅ Saved! Last Inventory Date set to " + res.date);
-        // Update the displayed card values
         document.getElementById("aLoc").textContent    = payload.location;
         document.getElementById("aStatus").textContent = payload.status;
         document.getElementById("aLastInv").textContent = res.date;
@@ -445,15 +427,14 @@ function saveChanges() {
         setBanner("error", "Save failed: " + res.message);
       }
     })
-    .withFailureHandler(err => {
+    .catch(err => {
       btn.innerHTML = "✓ Save & Log Scan";
       btn.disabled  = false;
-      setBanner("error", "Error: " + err.message);
-    })
-    .updateAsset(payload);
+      setBanner("error", "Network error: " + err.message);
+    });
 }
 
-// ── Reset ─────────────────────────────────────────────────────
+// ── Reset ────────────────────────────────────────────────────
 function resetScanner() {
   currentAsset = null;
   document.getElementById("assetCard").style.display = "none";
@@ -462,7 +443,7 @@ function resetScanner() {
   initScanner();
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────
 function setBanner(type, msg) {
   const el = document.getElementById("banner");
   el.className = "banner" + (type ? " " + type : "");
@@ -475,7 +456,7 @@ function formatDate(val) {
   return String(val).split("T")[0];
 }
 
-// ── Boot ──────────────────────────────────────────────────────
+// ── Boot ─────────────────────────────────────────────────────
 window.addEventListener("load", initScanner);
 document.getElementById("manualTag").addEventListener("keydown", e => {
   if (e.key === "Enter") lookupTag();
