@@ -345,13 +345,32 @@ function lookupTag() {
   fetchAsset(tag);
 }
 
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_ID/exec";
+
 function fetchAsset(tag) {
-  google.script.run
-    .withSuccessHandler(onAssetLoaded)
-    .withFailureHandler(err => setBanner("error", "Error: " + err.message))
-    .lookupAsset(tag);
+  fetch(APPS_SCRIPT_URL + "?tag=" + encodeURIComponent(tag))
+    .then(r => r.json())
+    .then(onAssetLoaded)
+    .catch(err => setBanner("error", "Error: " + err.message));
 }
 
+function saveChanges() {
+  const payload = {
+    row:      currentAsset.row,
+    location: document.getElementById("editLocation").value,
+    status:   document.getElementById("editStatus").value,
+    notes:    document.getElementById("editNotes").value,
+  };
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  })
+    .then(r => r.json())
+    .then(res => {
+      if (res.ok) setBanner("ok", "✅ Saved! Last Inventory Date set to " + res.date);
+      else setBanner("error", "Save failed: " + res.message);
+    });
+}
 function onAssetLoaded(data) {
   if (!data.ok) {
     setBanner("error", "❌ " + data.message);
